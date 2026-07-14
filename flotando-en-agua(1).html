@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flotando en el agua</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --deep: #06263f;
+    --mid: #0e5a82;
+    --light: #4fb3c9;
+    --foam: #eaf7f7;
+    --glint: #ffd97a;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    height:100%;
+    font-family:'Inter', sans-serif;
+    background: var(--deep);
+    overflow:hidden;
+  }
+
+  /* ---------- WATER BACKGROUND ---------- */
+  .water{
+    position:fixed;
+    inset:0;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,217,122,0.08), transparent 40%),
+      linear-gradient(180deg, var(--mid) 0%, var(--deep) 65%, #031320 100%);
+    overflow:hidden;
+  }
+
+  .caustic{
+    position:absolute;
+    inset:-20%;
+    background-image:
+      repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 2px, transparent 3px, transparent 60px),
+      repeating-radial-gradient(circle at 70% 60%, rgba(255,255,255,0.04) 0, rgba(255,255,255,0.04) 2px, transparent 3px, transparent 80px);
+    animation: causticDrift 22s ease-in-out infinite alternate;
+    opacity:0.6;
+    mix-blend-mode: screen;
+  }
+  @keyframes causticDrift{
+    0%{ transform: translate(0,0) scale(1); }
+    100%{ transform: translate(-3%, 2%) scale(1.06); }
+  }
+
+  .surface-line{
+    position:absolute;
+    left:0; right:0; top:38%;
+    height:1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    position:relative;
+    z-index:5;
+    text-align:center;
+    padding: 34px 20px 10px;
+    color: var(--foam);
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-style:italic;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    margin:0 0 6px;
+    letter-spacing: 0.3px;
+  }
+  p.sub{
+    margin:0;
+    font-size:0.92rem;
+    color: rgba(234,247,247,0.65);
+    font-weight:400;
+  }
+
+  /* ---------- STAGE ---------- */
+  .stage{
+    position:relative;
+    z-index:3;
+    height: calc(100% - 118px);
+    display:block;
+    padding: 0;
+    overflow:hidden;
+  }
+
+  .slot{
+    position:absolute;
+    left:0;
+    top:0;
+    width: min(26vw, 260px);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    will-change: transform;
+  }
+
+  /* position/rotation now driven entirely by JS physics (drift + collisions) */
+  .floater{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+
+  .frame{
+    position:relative;
+    width:100%;
+    aspect-ratio: 1/1;
+    border-radius: 14px;
+    overflow:hidden;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    cursor:pointer;
+  }
+  .frame img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .placeholder{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    color: rgba(234,247,247,0.55);
+    text-align:center;
+    padding: 16px;
+    font-size:0.85rem;
+    border: 1.5px dashed rgba(234,247,247,0.35);
+    border-radius: 14px;
+  }
+  .placeholder svg{ width:28px; height:28px; opacity:0.7; }
+  .frame:hover .placeholder{
+    border-color: var(--glint);
+    color: var(--glint);
+  }
+
+  /* ripple rings at the waterline under each floater */
+  .waterline{
+    position:relative;
+    width:120%;
+    height:26px;
+    margin-top: -8px;
+  }
+  .ring{
+    position:absolute;
+    left:50%;
+    top:0;
+    border:1.5px solid rgba(255,255,255,0.35);
+    border-radius:50%;
+    transform: translate(-50%,-50%) scaleY(0.28);
+    animation: ripple 3.4s ease-out infinite;
+    opacity:0;
+  }
+  .ring:nth-child(2){ animation-delay:1.1s; }
+  .ring:nth-child(3){ animation-delay:2.2s; }
+  @keyframes ripple{
+    0%{ width:20%; height:20%; opacity:0.55; }
+    100%{ width:150%; height:150%; opacity:0; }
+  }
+
+  /* reflection: flipped, blurred, distorted with SVG turbulence, fading out */
+  .reflection{
+    width:100%;
+    aspect-ratio: 1/1;
+    margin-top: 2px;
+    transform: scaleY(-1);
+    border-radius: 14px;
+    overflow:hidden;
+    opacity:0.38;
+    filter: url(#ripple-distort) blur(0.5px);
+    -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, transparent 78%);
+    mask-image: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, transparent 78%);
+  }
+  .reflection img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .reflection:empty{ display:none; }
+
+  input[type="file"]{ display:none; }
+
+  footer{
+    position:relative;
+    z-index:5;
+    text-align:center;
+    padding: 10px 0 18px;
+    color: rgba(234,247,247,0.4);
+    font-size:0.76rem;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .floater, .caustic, .ring{ animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <filter id="ripple-distort">
+    <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.01 0.06" numOctaves="2" seed="7" result="noise">
+      <animate attributeName="baseFrequency" dur="7s" values="0.01 0.06;0.015 0.09;0.01 0.06" repeatCount="indefinite" />
+    </feTurbulence>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<div class="water">
+  <div class="caustic"></div>
+  <div class="surface-line"></div>
+</div>
+
+<header>
+  <h1>Dos imágenes, un mismo estanque</h1>
+  <p class="sub">Toca un marco para subir tu imagen y verla flotar</p>
+</header>
+
+<div class="stage">
+
+  <div class="slot">
+    <div class="floater">
+      <label class="frame" for="upload-1">
+        <div class="placeholder" id="placeholder-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Subir primera imagen</span>
+        </div>
+        <img id="img-1" style="display:none">
+      </label>
+      <input type="file" id="upload-1" accept="image/*">
+      <div class="waterline">
+        <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+      </div>
+      <div class="reflection" id="reflection-1"></div>
+    </div>
+  </div>
+
+  <div class="slot">
+    <div class="floater">
+      <label class="frame" for="upload-2">
+        <div class="placeholder" id="placeholder-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Subir segunda imagen</span>
+        </div>
+        <img id="img-2" style="display:none">
+      </label>
+      <input type="file" id="upload-2" accept="image/*">
+      <div class="waterline">
+        <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+      </div>
+      <div class="reflection" id="reflection-2"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>hecho para flotar &middot; sube JPG o PNG</footer>
+
+<script>
+  function setupUploader(inputId, imgId, placeholderId, reflectionId){
+    const input = document.getElementById(inputId);
+    const img = document.getElementById(imgId);
+    const placeholder = document.getElementById(placeholderId);
+    const reflection = document.getElementById(reflectionId);
+
+    input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        img.src = ev.target.result;
+        img.style.display = 'block';
+        placeholder.style.display = 'none';
+
+        reflection.innerHTML = '';
+        const reflImg = document.createElement('img');
+        reflImg.src = ev.target.result;
+        reflection.appendChild(reflImg);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  setupUploader('upload-1','img-1','placeholder-1','reflection-1');
+  setupUploader('upload-2','img-2','placeholder-2','reflection-2');
+
+  /* ---------- PHYSICS: drifting + collisions ---------- */
+  const stage = document.querySelector('.stage');
+  const slotEls = Array.from(document.querySelectorAll('.slot'));
+
+  const bodies = slotEls.map((el, i) => {
+    const w = el.getBoundingClientRect().width || 260;
+    return {
+      el,
+      radius: w * 0.5,
+      x: 0, y: 0,
+      vx: (Math.random() - 0.5) * 30,
+      vy: (Math.random() - 0.5) * 30,
+      angle: (Math.random() - 0.5) * 6,
+      angularVel: (Math.random() - 0.5) * 6,
+      phase: Math.random() * Math.PI * 2,
+      phaseSpeed: 0.35 + Math.random() * 0.25,
+      seed: i
+    };
+  });
+
+  function initPositions(){
+    const rect = stage.getBoundingClientRect();
+    bodies.forEach((b, i) => {
+      const w = b.el.getBoundingClientRect().width || 260;
+      b.radius = w * 0.5;
+      // start them spread apart, not overlapping
+      b.x = rect.width * (i === 0 ? 0.28 : 0.68);
+      b.y = rect.height * (i === 0 ? 0.35 : 0.55);
+    });
+  }
+  initPositions();
+  window.addEventListener('resize', initPositions);
+
+  let lastT = performance.now();
+
+  function step(t){
+    const dt = Math.min((t - lastT) / 1000, 0.05); // seconds, capped
+    lastT = t;
+    const rect = stage.getBoundingClientRect();
+
+    bodies.forEach(b => {
+      // gentle wandering "current" force, unique phase per body, so motion
+      // never settles into a repeating loop
+      b.phase += dt * b.phaseSpeed;
+      const currentX = Math.sin(b.phase * 0.9 + b.seed * 2.1) * 14;
+      const currentY = Math.cos(b.phase * 0.7 + b.seed * 1.3) * 10;
+
+      b.vx += currentX * dt;
+      b.vy += currentY * dt;
+
+      // gentle damping so it doesn't spiral out of control
+      b.vx *= 0.985;
+      b.vy *= 0.985;
+
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+
+      // rotation: slow rocking plus damped spin from any collision impulse
+      b.angularVel *= 0.96;
+      b.angle += (Math.sin(b.phase * 1.1 + b.seed) * 8 - b.angle) * 0.02 + b.angularVel * dt;
+    });
+
+    // bounce off the pond edges
+    bodies.forEach(b => {
+      const minX = b.radius * 0.3, maxX = rect.width - b.radius * 0.3;
+      const minY = b.radius * 0.2, maxY = rect.height - b.radius * 0.9;
+      if(b.x < minX){ b.x = minX; b.vx = Math.abs(b.vx) * 0.6 + 8; }
+      if(b.x > maxX){ b.x = maxX; b.vx = -Math.abs(b.vx) * 0.6 - 8; }
+      if(b.y < minY){ b.y = minY; b.vy = Math.abs(b.vy) * 0.6 + 8; }
+      if(b.y > maxY){ b.y = maxY; b.vy = -Math.abs(b.vy) * 0.6 - 8; }
+    });
+
+    // pairwise collisions: push apart + exchange velocity along the contact normal
+    for(let i = 0; i < bodies.length; i++){
+      for(let j = i + 1; j < bodies.length; j++){
+        const a = bodies[i], b = bodies[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+        const minDist = (a.radius + b.radius) * 0.62; // let images overlap edges a bit before "touching"
+        if(dist < minDist){
+          const nx = dx / dist, ny = dy / dist;
+          const overlap = (minDist - dist);
+
+          // separate them
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+
+          // relative velocity along normal
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          const velAlongNormal = rvx * nx + rvy * ny;
+
+          if(velAlongNormal < 0){
+            const restitution = 0.75;
+            const impulse = -(1 + restitution) * velAlongNormal / 2;
+            a.vx -= impulse * nx;
+            a.vy -= impulse * ny;
+            b.vx += impulse * nx;
+            b.vy += impulse * ny;
+          } else {
+            // even if drifting apart already, give a little push so contact reads clearly
+            a.vx -= nx * 6;
+            a.vy -= ny * 6;
+            b.vx += nx * 6;
+            b.vy += ny * 6;
+          }
+
+          a.angularVel -= 40;
+          b.angularVel += 40;
+        }
+      }
+    }
+
+    bodies.forEach(b => {
+      b.el.style.transform = `translate(${b.x - b.radius}px, ${b.y - b.radius}px) rotate(${b.angle}deg)`;
+    });
+
+    requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+</script>
+
+</body>
+</html>
